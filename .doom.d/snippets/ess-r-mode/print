@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: print
+# key: pri
+# --
+
+print(n = ${0:Inf})

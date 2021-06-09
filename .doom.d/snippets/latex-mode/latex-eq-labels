@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: latex-eq-labels
+# uuid: eql
+# key: eql
+# condition: t
+# --
+
+\label{eq:$0}

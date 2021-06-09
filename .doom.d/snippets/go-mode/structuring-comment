@@ -1,0 +1,6 @@
+# key: --
+# name: structuring-comment
+# expand-env: ((yas-indent-line 'fixed))
+# --
+// -----------------------------------------
+$0

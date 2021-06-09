@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: inline-src
+# key: sr
+# --
+src_R\{${0:code}\}
