@@ -107,6 +107,14 @@
                        '(evil-ex-completion-map)))
     "C-r" command))
 
+;; yadm
+(use-package! yadm
+  :config
+  (map! :leader
+        (:prefix "f"
+         "." #'yadm-find-file
+         ">" #'yadm-dired)))
+
 ;; Projectile
 (after! projectile
   (add-to-list 'projectile-globally-ignored-directories ".venv"))
