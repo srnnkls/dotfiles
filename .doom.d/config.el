@@ -444,6 +444,17 @@ Prefix arg VIS toggles visibility of ess-code as for `ess-eval-region'."
 (add-hook! 'python-mode-hook
     (add-hook 'before-save-hook #'python-before-save-hook nil t))
 
+;; iedit
+;; hack to fix conflict between pinned iedit/tree-sitter/python-mode
+;; related issues:
+;; 1. https://github.com/hlissner/evil-multiedit/issues/40
+;; 2. https://github.com/ubolonton/emacs-tree-sitter/issues/73#issuecomment-739195967
+;; 3. https://github.com/hlissner/evil-multiedit/issues/39
+(add-hook! 'tree-sitter-after-on-hook
+           (add-hook! 'iedit-mode-hook :local (tree-sitter-mode -1))
+           (add-hook! 'iedit-mode-end-hook :local (tree-sitter-mode 1)))
+
+
 ;; appropriately chain flycheck chckers after lsp - credit to yyoncho:
 ;; https://github.com/flycheck/flycheck/issues/1762#issuecomment-750458442
 (defvar-local +flycheck-local-cache nil)
