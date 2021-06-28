@@ -466,8 +466,10 @@ Prefix arg VIS toggles visibility of ess-code as for `ess-eval-region'."
 
 (add-hook 'lsp-managed-mode-hook
           (lambda ()
-            (when (derived-mode-p 'python-mode)
-              (setq +flycheck-local-cache '((lsp . ((next-checkers . ('python-pylint)))))))))
+            (cond ((derived-mode-p 'python-mode)
+                   (setq +flycheck-local-cache '((lsp . ((next-checkers . (python-flake8)))))))
+                  ((derived-mode-p 'go-mode)
+                   (setq +flycheck-local-cache '((lsp . ((next-checkers . (golangci-lint))))))))))
 
 ;;; Web Dev
 ;; web-mode
