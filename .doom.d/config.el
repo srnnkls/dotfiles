@@ -425,10 +425,9 @@ Prefix arg VIS toggles visibility of ess-code as for `ess-eval-region'."
 ;;; Go
 (after! go-mode
   (add-hook! 'go-mode-hook #'subword-mode)
-  (set-formatter! 'gofmt "gofmt")
   (setq flycheck-golangci-lint-enable-all nil
         ;; flycheck-golangci-lint-disable-linters '("gomodguard")
-))
+        ))
 
 ;;; Python
 ;; (set-formatter! 'autopep8 "autopep8 -")
