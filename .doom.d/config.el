@@ -113,7 +113,9 @@
   (map! :leader
         (:prefix "f"
          "." #'yadm-find-file
-         ">" #'yadm-dired)))
+         ">" #'yadm-dired
+         :prefix "y"
+         "y" #'yadm-status)))
 
 ;; Projectile
 (after! projectile
