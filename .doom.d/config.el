@@ -107,6 +107,14 @@
                        '(evil-ex-completion-map)))
     "C-r" command))
 
+;; ranger
+(setq ranger-cleanup-eagerly t
+      ranger-show-hidden t)
+
+;; tramp
+(after! tramp
+  (add-to-list 'tramp-remote-path 'tramp-own-remote-path))
+
 ;; yadm
 (use-package! yadm
   :config
@@ -175,7 +183,8 @@
     (setq ivy--old-re nil
           ivy--all-candidates (ivy--buffer-list "" ivy-use-virtual-buffers (ivy-state-predicate ivy-last)))
     (let ((ivy--recompute-index-inhibit t))
-      (ivy--exhibit))))
+      (ivy--exhibit)))
+  (setq prescient-use-char-folding nil))
 
   ;; (advice-add 'ivy--kill-current-candidate-buffer
   ;;             :override #'+ivy--kill-current-candidate-buffer))
@@ -185,6 +194,7 @@
 
 (map! :after ivy
       (:map ivy-minibuffer-map
+       "C-n" #'ivy-next-line
        "C-n" #'ivy-next-line
        "C-p" #'ivy-previous-line
        "C-l" #'ivy-partial-or-done
@@ -200,6 +210,8 @@
       "C-k" #'ivy-switch-buffer-kill
       :map counsel-find-file-map
       "C-t" #'counsel-switch-to-fzf)
+
+;; prescient
 
 ;; Ispell
 (setq ispell-dictionary "en")
@@ -228,14 +240,14 @@
 (use-package! jupyter
   :config
   (setq jupyter-repl-echo-eval-p t)
-  (set-popup-rule! "^\\*jupyter-repl" :quit nil :side 'right :width 90 :slot 1)
+  (set-popup-rule! "^\\*jupyter-repl" :quit nil :side 'right :width 90 :slot 1 :modeline t)
   (set-popup-rule! "^\\*jupyter-kernels" :select t :side 'right :width 121 :slot 1)
   (after! savehist
     (add-to-list 'savehist-additional-variables 'jupyter-server-kernel-names))
 
   (map! :map jupyter-repl-mode-map
         :g "s-'" #'jump-to-previous-window
-        :g "C-r" #'isearch-backward
+        :niv "C-r" #'+ivy/jupyter-search-repl
         :n "C-p" #'jupyter-repl-history-previous
         :n "C-n" #'jupyter-repl-history-next
         :i "M-p" #'jupyter-repl-history-previous-matching
@@ -255,9 +267,16 @@
         (:prefix-map ("j" . "Jupyter")
         :desc "Associate buffer" "a" #'jupyter-repl-associate-buffer
         :desc "Connect to server kernel" "c" #'jupyter-connect-server-repl
-        :desc "Switch to repl" "j" #'+ivy-switch-jupyer-repl
-        :desc "Switch to repl" "r" #'+ivy-switch-jupyer-repl
+        :desc "Switch to repl" "j" #'+ivy/jupyter-switch-repl
+        :desc "Switch to repl" "r" #'+ivy/jupyter-switch-repl
         :desc "Open kernel list" "k" #'jupyter-server-list-kernels))))
+
+(defun +ivy/jupyter-search-repl ()
+  "Switch to another jupyer repl buffer."
+  (interactive)
+  (ivy-read "Search repl: " (seq-filter #'stringp (ring-elements jupyter-repl-history))
+            :action #'ivy--action-insert))
+            ;; :preselect (buffer-name (other-buffer (current-buffer)))
 
 (defun +jupyter-server-kernel-list-new-repl ()
   "Connect a REPL to the kernel corresponding to the current entry."
@@ -272,7 +291,7 @@
 (advice-add 'jupyter-server-kernel-list-new-repl
             :override #'+jupyter-server-kernel-list-new-repl)
 
-(defun +ivy-switch-jupyer-repl ()
+(defun +ivy/jupyter-switch-repl ()
   "Switch to another jupyer repl buffer."
   (interactive)
   (ivy-read "Switch to repl: " #'internal-complete-buffer
@@ -281,13 +300,14 @@
             ;; :preselect (buffer-name (other-buffer (current-buffer)))
             :action #'pop-to-buffer
             :matcher #'ivy--switch-buffer-matcher
-            :caller #'+ivy-switch-jupyer-kernel))
+            :caller #'+ivy/switch-jupyer-kernel))
 
 (defun +ivy--is-jupyter-repl-buffer-p (buffer)
   (let ((buffer (car buffer)))
     (when (not (stringp buffer))
       (setq buffer (buffer-name buffer)))
     (string-match-p "^\\*jupyter-repl" buffer)))
+
 
 (defun jump-to-previous-window ()
   (interactive)
@@ -455,6 +475,17 @@ Prefix arg VIS toggles visibility of ess-code as for `ess-eval-region'."
            (add-hook! 'iedit-mode-hook :local (tree-sitter-mode -1))
            (add-hook! 'iedit-mode-end-hook :local (tree-sitter-mode 1)))
 
+;;; evil-mc
+(after! evil-mc-mode
+  (map! :map evil-mc-key-map
+        :nv "C-n" nil
+        :nv "C-p" nil))
+
+;;; Flycheck
+(set-popup-rule! "^\\*Flycheck" :select t :side 'right :width 120 :slot 1)
+
+(after! flycheck
+  (setq-default flycheck-disabled-checkers '(python-pylint)))
 
 ;; appropriately chain flycheck chckers after lsp - credit to yyoncho:
 ;; https://github.com/flycheck/flycheck/issues/1762#issuecomment-750458442
@@ -495,9 +526,6 @@ Prefix arg VIS toggles visibility of ess-code as for `ess-eval-region'."
 (after! web-mode
   (use-package! dap-chrome))
 
-;;; Flycheck
-(set-popup-rule! "^\\*Flycheck" :select t :side 'right :width 120 :slot 1)
-
 ;;; Format
 (set-popup-rule! "^\\*format-all-errors*" :select nil :side 'bottom :height 15 :slot 1)
 
@@ -534,60 +562,74 @@ Prefix arg VIS toggles visibility of ess-code as for `ess-eval-region'."
 
 ;;; Org-mode setup
 
-;; Poly Org
-(use-package! poly-org)
-(use-package! poly-markdown)
+(defun +ivy--rg-org (initial-directory rg-prompt)
+  (counsel-rg nil initial-directory "--glob '*.org'" rg-prompt))
 
-(defun +org-element-in-src-block-p (&optional inside)
-  "A version of `org-in-src-block-p' that uses `org-element' for checking
-if in src block to make it work with polymode (where char porpeties seem to
-go lost)."
-  (let ((case-fold-search t))
-    (and (eq (org-element-type (org-element-context)) 'src-block)
-         (if inside
-             (save-match-data
-               (save-excursion
-                 (beginning-of-line)
-                 (not (looking-at ".*#\\+\\(header\\|name\\|\\(begin\\|end\\)_src\\)"))))
-           t))))
-
-(defun polymode-mark-inner-chunk ()
-  (let ((span (pm-innermost-span)))
-    (set-mark (1+ (nth 1 span)))
-    (goto-char (1- (nth 2 span)))))
-
-(defun polymode-mark-chunk ()
-  (let ((span (pm-innermost-span)))
-    (goto-char (1- (nth 1 span)))
-    (set-mark (line-beginning-position))
-    (goto-char (nth 2 span))
-    (goto-char (line-end-position))))
-
-(evil-define-text-object evil-inner-polymode-chunk (count &optional beg end type)
-  "Select inner polymode chunk."
-  :type line
-  (polymode-mark-inner-chunk)
-  (evil-range (region-beginning)
-              (region-end)
-              'line))
-
-(evil-define-text-object evil-a-polymode-chunk (count &optional beg end type)
-  "Select a polymode chunk."
-  :type line
-  (polymode-mark-chunk)
-  (evil-range (region-beginning)
-              (region-end)
-              'line))
-
-(map! :map evil-inner-text-objects-map "c" 'evil-inner-polymode-chunk)
-(map! :map evil-inner-text-objects-map "C" 'evilnc-inner-comment)
-(map! :map evil-outer-text-objects-map "c" 'evil-a-polymode-chunk)
-(map! :map evil-outer-text-objects-map "C" 'evilnc-outer-commenter)
-
-(defun org-src-block-heading-or-org-previous-visible-heading ()
+(defun +ivy/rg-org-getml ()
   (interactive)
-  (if (+org-element-in-src-block-p t) (org-babel-goto-src-block-head)
-    (org-babel-previous-src-block)))
+  (+ivy--rg-org "~/getML/" "Search getML notes: "))
+
+(map! (:leader
+        (:prefix "n"
+         :desc "Search in getML org files" :n "g" #'+ivy/rg-org-getml)))
+;; Polymode
+;; (use-package! poly-org)
+;; (use-package! poly-markdown)
+
+;; (setq org-mobile-directory "~/Library/Mobile Documents/iCloud~com~mobileorg~mobileorg/Documents"
+;;       org-mobile-inbox-for-pull "~/org/inbox.org")
+
+
+;; (defun +org-element-in-src-block-p (&optional inside)
+;;   "A version of `org-in-src-block-p' that uses `org-element' for checking
+;; if in src block to make it work with polymode (where char porpeties seem to
+;; go lost)."
+;;   (let ((case-fold-search t))
+;;     (and (eq (org-element-type (org-element-context)) 'src-block)
+;;          (if inside
+;;              (save-match-data
+;;                (save-excursion
+;;                  (beginning-of-line)
+;;                  (not (looking-at ".*#\\+\\(header\\|name\\|\\(begin\\|end\\)_src\\)"))))
+;;            t))))
+
+;; (defun polymode-mark-inner-chunk ()
+;;   (let ((span (pm-innermost-span)))
+;;     (set-mark (1+ (nth 1 span)))
+;;     (goto-char (1- (nth 2 span)))))
+
+;; (defun polymode-mark-chunk ()
+;;   (let ((span (pm-innermost-span)))
+;;     (goto-char (1- (nth 1 span)))
+;;     (set-mark (line-beginning-position))
+;;     (goto-char (nth 2 span))
+;;     (goto-char (line-end-position))))
+
+;; (evil-define-text-object evil-inner-polymode-chunk (count &optional beg end type)
+;;   "Select inner polymode chunk."
+;;   :type line
+;;   (polymode-mark-inner-chunk)
+;;   (evil-range (region-beginning)
+;;               (region-end)
+;;               'line))
+
+;; (evil-define-text-object evil-a-polymode-chunk (count &optional beg end type)
+;;   "Select a polymode chunk."
+;;   :type line
+;;   (polymode-mark-chunk)
+;;   (evil-range (region-beginning)
+;;               (region-end)
+;;               'line))
+
+;; (map! :map evil-inner-text-objects-map "c" 'evil-inner-polymode-chunk)
+;; (map! :map evil-inner-text-objects-map "C" 'evilnc-inner-comment)
+;; (map! :map evil-outer-text-objects-map "c" 'evil-a-polymode-chunk)
+;; (map! :map evil-outer-text-objects-map "C" 'evilnc-outer-commenter)
+
+;; (defun org-src-block-heading-or-org-previous-visible-heading ()
+;;   (interactive)
+;;   (if (+org-element-in-src-block-p t) (org-babel-goto-src-block-head)
+;;     (org-babel-previous-src-block)))
 
 ;; (after! ivy
  ;; (add-to-list 'ivy-ignore-buffers "\\[.+\\]"))
@@ -596,15 +638,15 @@ go lost)."
 ;;   'normal 'poly-org-mode
 ;;   "C-c C-c" #'org-ctrl-c-ctrl-c)
 
-(map! :map (poly-org-mode-map evil-org-mode-map)
-      :niv "C-c C-c" #'org-ctrl-c-ctrl-c
-      :nv "[i" #'polymode-previous-chunk
-      :nv "]i" #'polymode-next-chunk
-      :nv "C-i" #'better-jumper-jump-forward)
+;; (map! :map (poly-org-mode-map evil-org-mode-map)
+;;       :niv "C-c C-c" #'org-ctrl-c-ctrl-c
+;;       :nv "[i" #'polymode-previous-chunk
+;;       :nv "]i" #'polymode-next-chunk
+;;       :nv "C-i" #'better-jumper-jump-forward)
 
-(map! :map (poly-org-mode-map evil-org-mode-map)
-      :localleader
-      "m" #'org-preview-latex-fragment)
+;; (map! :map (poly-org-mode-map evil-org-mode-map)
+;;       :localleader
+;;       "m" #'org-preview-latex-fragment)
 ;; :niv "C-c '" #'org-edit-special
 (map! :after evil-org
       :map evil-org-mode-map
@@ -623,8 +665,8 @@ go lost)."
       :nv "C-k" #'evil-insert-digraph
       :nv "C-j" #'electric-newline-and-maybe-indent)
 
-(add-hook! 'polymode-init-inner-hook
-  #'evil-normalize-keymaps)
+;; (add-hook! 'polymode-init-inner-hook
+;;   #'evil-normalize-keymaps)
      ;; lambda () (font-lock-add-keywords nil tex-font-lock-keywords-1))
      ;; lambda () (font-lock-add-keywords nil tex-font-lock-keywords-1))
 
@@ -679,7 +721,7 @@ Featuers:
   (setq org-babel-inline-result-wrap "%s")
   (setq org-latex-prefer-user-labels t)
   (set-popup-rule! "^\\*Org Src" :size 0.9 :quit nil :select t :autosave t :modeline t :ttl nil)
-  (setq org-startup-indented nil)
+  (setq org-startup-indented t)
 
   ;; Tufte
   (add-to-list 'org-latex-classes
@@ -753,14 +795,19 @@ Featuers:
       bibtex-completion-notes-path "~/Dropbox/org/ref.org" ;the note file for reference notes
       ;; org-directory "~/Dropbox/org"
       org-ref-bibliography-notes "~/Dropbox/org/ref.org"
-      org-ref-default-citation-link "citet")
+      org-ref-default-citation-link "cite")
 
-(map! :after org-ref
- (:map org-mode-map
-      (:desc "References" :prefix "C-]"
-      :i "C-c" #'org-ref-ivy-insert-cite-link
-      :i "C-r" #'org-ref-ivy-insert-ref-link
-      :i "C-l" #'org-ref-ivy-insert-label-link)))
+(use-package! org-ref
+  :config
+  (map! :map org-mode-map
+        (:desc "References" :prefix "C-\\"
+         :i "C-c" #'org-ref-insert-cite-link
+         :i "C-r" #'org-ref-insert-ref-link
+         :i "C-l" #'org-ref-insert-label-link))
+  (delete '("\\.pdf\\'" . default) org-file-apps)
+  (add-to-list 'org-file-apps
+               '("\\.pdf\\'" . (lambda (file link)
+                                 (org-pdftools-open link)))))
 
 ;; AuCTeX setup
 (setq-default TeX-master "preamble.tex")

@@ -25,7 +25,7 @@
        ;;helm              ; the *other* search engine for love and life
        ;;ido               ; the other *other* search engine...
        (ivy
-        +fuzzy
+        ;; +fuzzy
         +icons
         +prescient)        ; a search engine for love and life
 
@@ -90,6 +90,7 @@
 
        :tools
        ;;ansible
+       biblio
        debugger          ; FIXME stepping through code, to help you add bugs
        direnv
        docker
@@ -113,11 +114,11 @@
 
        :os
        (:if IS-MAC macos)  ; improve compatibility with macOS
-       ;;tty               ; improve the terminal Emacs experience
+       tty               ; improve the terminal Emacs experience
 
        :lang
        ;;agda              ; types of types of types of types...
-       ;;cc                ; C/C++/Obj-C madness
+       cc                ; C/C++/Obj-C madness
        ;;clojure           ; java with a lisp
        ;;common-lisp       ; if you've seen one lisp, you've seen them all
        ;;coq               ; proofs-as-programs
